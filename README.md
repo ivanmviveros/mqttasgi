@@ -29,7 +29,7 @@ Parameters:
 |-------------|------------------|:--------------------:|:--------------------:|
 | -H / --host | MQTT broker host | MQTT_HOSTNAME | localhost |
 | -p / --port | MQTT broker port | MQTT_PORT | 1883 |
-| -c / --cleansession | MQTT Clean Session | MQTT_CLEAN | True |
+| -c / --cleansession | MQTT Clean Session, for MQTT protocol v5 is passed as clean_start in client.connect | MQTT_CLEAN | True |
 | -v / --verbosity | Logging verbosity | VERBOSITY | 0 |
 | -U / --username | MQTT Username | MQTT_USERNAME |  |
 | -P / --password | MQTT Password | MQTT_PASSWORD |  |
@@ -39,6 +39,7 @@ Parameters:
 | -S / --cacert | TLS CA Certificate | TLS_CA |  |
 | -SSL / --use-ssl | Use ssl (without certificate authentication) | MQTT_USE_SSL | False |
 | -T / --transport | Transport type (tcp or websockets) | MQTT_TRANSPORT | tcp |
+| -PT / --protocol | MQTT protocol (3.1, 3.1.1 or 5) | MQTT_PROTOCOL | 3.1.1 |
 | -r / --retries | Num. retries on disconnect | MQTT_RETRIES | 3 |
 | Last argument | ASGI Apllication |  | |
 

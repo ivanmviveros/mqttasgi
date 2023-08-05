@@ -4,6 +4,7 @@ import os
 from .server import Server
 from .utils import get_application
 from dotenv import load_dotenv
+from paho.mqtt.client import MQTTv31, MQTTv311, MQTTv5
 
 load_dotenv()
 
@@ -16,6 +17,16 @@ def bool_type_converter(arg):
         return False
     raise ValueError()
 
+def protocol_type_converter(arg):
+    try:
+        protocol_map = {
+            "3.1": MQTTv31,
+            "3.1.1": MQTTv311,
+            "5": MQTTv5,
+        }
+        return protocol_map[arg]
+    except KeyError:
+        raise ValueError()
 
 def main():
     parser = argparse.ArgumentParser(description="MQTT ASGI Protocol Server")
@@ -44,6 +55,8 @@ def main():
                         type=bool_type_converter, default=bool_type_converter(os.environ.get("MQTT_USE_SSL", "False")))
     parser.add_argument("-T", "--transport", help="Transport type (tcp or websockets)",
                         default=os.environ.get("MQTT_TRANSPORT", "tcp"))
+    parser.add_argument("-PT", "--protocol", help="MQTT protocol (3.1, 3.1.1 or 5)", type= protocol_type_converter,
+                        default=os.environ.get("MQTT_PROTOCOL", MQTTv311))
     parser.add_argument("-r", "--retries", help="Maximum number of connection retries after unexpected disconnect (0 to always try to reconnect)",
                         default=os.environ.get("MQTT_RETRIES", 3), type=int)
 
@@ -77,7 +90,8 @@ def main():
         ca_cert=args.cacert,
         connect_max_retries=args.retries,
         use_ssl=args.use_ssl,
-        transport = args.transport
+        transport = args.transport,
+        protocol=args.protocol
     )
 
     server.run()

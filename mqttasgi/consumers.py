@@ -26,7 +26,7 @@ class MqttConsumer(AsyncConsumer):
     async def disconnect(self):
         pass
 
-    async def publish(self, topic, payload, qos=1, retain=False):
+    async def publish(self, topic, payload, qos=1, retain=False, properties=None):
         await self.send({
             'type': 'mqtt.pub',
             'mqtt': {
@@ -34,10 +34,11 @@ class MqttConsumer(AsyncConsumer):
                 'payload': payload,
                 'qos': qos,
                 'retain': retain,
+                'properties': properties
             }
         })
 
-    async def subscribe(self, topic, qos):
+    async def subscribe(self, topic, qos, properties=None):
         if topic not in self.subscribed_topics:
             self.subscribed_topics.add(topic)
 
@@ -45,17 +46,19 @@ class MqttConsumer(AsyncConsumer):
             'type': 'mqtt.sub',
             'mqtt': {
                 'topic': topic,
-                'qos': qos
+                'qos': qos,
+                'properties': properties
             }
         })
 
-    async def unsubscribe(self, topic):
+    async def unsubscribe(self, topic, properties=None):
         if topic in self.subscribed_topics:
             self.subscribed_topics.remove(topic)
         await self.send({
             'type': 'mqtt.usub',
             'mqtt': {
-                'topic': topic
+                'topic': topic,
+                'properties': properties
             }
         })
 

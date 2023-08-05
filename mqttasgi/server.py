@@ -6,6 +6,8 @@ import time
 import signal
 import json
 import paho.mqtt.client as mqtt
+from paho.mqtt.client import MQTTv311, MQTTv5
+
 from .utils import get_application
 import sys
 
@@ -16,7 +18,7 @@ class Server(object):
     def __init__(self, application, host, port, username=None, password=None,
                  client_id=2407, mqtt_type_pub=None, mqtt_type_usub=None, mqtt_type_sub=None,
                  mqtt_type_msg=None, connect_max_retries=3, logger=None, clean_session=True, cert=None, key=None, ca_cert=None,
-                 use_ssl=False, transport ="tcp"):
+                 use_ssl=False, transport ="tcp", protocol=MQTTv311):
 
         self.application_type = application
         self.application_data = {}
@@ -32,13 +34,21 @@ class Server(object):
 
         self.host = host
         self.port = port
+        self.clean_session = clean_session
         self.client_id = client_id
         self.transport = transport
-        self.client = mqtt.Client(client_id=self.client_id, transport=self.transport, userdata={
+        self.protocol = protocol
+
+        userdata = {
             "server": self,
             "host": self.host,
             "port": self.port,
-        }, clean_session=clean_session)
+        }
+
+        if protocol < MQTTv5:
+            self.client = mqtt.Client(client_id=self.client_id, protocol=protocol, transport=self.transport, userdata=userdata, clean_session=clean_session)
+        else:
+            self.client = mqtt.Client(client_id=self.client_id, protocol=protocol, transport=self.transport, userdata=userdata)
 
         self.client.enable_logger(self.log)
         self.username = username
@@ -52,7 +62,7 @@ class Server(object):
         self.client.on_disconnect = self._on_disconnect
         self.connect_max_retries = connect_max_retries
         self.client.on_message = lambda client, userdata, message: \
-            self._mqtt_receive(-1, message.topic, message.payload, message.qos)
+            self._mqtt_receive(-1, message.topic, message.payload, message.qos, message.properties)
 
         self.topics_subscription = {}
         self.topic_queues = {}
@@ -62,7 +72,7 @@ class Server(object):
         self.mqtt_type_usub = mqtt_type_usub or "mqtt.usub"
         self.mqtt_type_msg = mqtt_type_msg or "mqtt.msg"
 
-    def _on_connect(self, client, userdata, flags, rc):
+    def _on_connect(self, client, userdata, flags, rc, properties=None):
         self.log.info("[mqttasgi][connection][connected] - Connected to {}:{}".format(self.host, self.port))
         for app_id in self.application_data:
             try:
@@ -77,7 +87,7 @@ class Server(object):
                                "of {}".format(app_id))
                 self.log.exception(e)
 
-    def _on_disconnect(self, client, userdata, rc):
+    def _on_disconnect(self, client, userdata, rc, properties=None):
         self.log.warning("[mqttasgi][connection][disconnected] - Disconnected from {}:{}".format(self.host, self.port))
         if not self.stop:
             self._handle_reconnect()
@@ -90,7 +100,10 @@ class Server(object):
                 if on_connect is False:
                     self.client.reconnect()
                 else:
-                    self.client.connect(self.host, self.port)
+                    if self.protocol < MQTTv5:
+                        self.client.connect(self.host, self.port)
+                    else:
+                        self.client.connect(self.host, self.port, clean_start=self.clean_session)
                 self.log.warning("[mqttasgi][connection][reconnect] - Reconnected after {} attempts".format(tries))
                 break
             except KeyboardInterrupt as e:
@@ -111,7 +124,7 @@ class Server(object):
             })
         raise Exception("[mqttasgi][connection][reconnect] - Failed to reconnect after {} attempts".format(self.connect_max_retries))
 
-    def _mqtt_receive(self, subscription, topic, payload, qos):
+    def _mqtt_receive(self, subscription, topic, payload, qos, properties):
         if subscription == -1:
             self.log.warning("[mqttasgi][mqtt][receive] - Received message that no app is subscribed"
                            " to topic:{} adding to queue".format(topic))
@@ -121,7 +134,8 @@ class Server(object):
             self.topic_queues[topic] += [{
                         'topic': topic,
                         'payload': payload,
-                        'qos': qos
+                        'qos': qos,
+                        'properties': properties
                     }]
             return
 
@@ -132,7 +146,8 @@ class Server(object):
                     'mqtt': {
                         'topic': topic,
                         'payload': payload,
-                        'qos': qos
+                        'qos': qos,
+                        'properties': properties
                     }
                 })
             except Exception as e:
@@ -179,7 +194,9 @@ class Server(object):
             mqqt_publication['topic'],
             mqqt_publication['payload'],
             qos=mqqt_publication.get('qos', 1),
-            retain=mqqt_publication.get('retain', False))
+            retain=mqqt_publication.get('retain', False),
+            properties=mqqt_publication.get('properties')
+        )
 
     async def mqtt_subscribe(self, app_id, msg):
         mqqt_subscritpion = msg['mqtt']
@@ -202,15 +219,16 @@ class Server(object):
             self.log.debug(
                 "[mqttasgi][app][subscribe] - Subscription to {} must be updated to QOS: {}".format(topic, qos))
             self.client.unsubscribe(topic)
-            self.client.subscribe(topic, qos)
+            self.client.subscribe(topic, qos, properties=mqqt_subscritpion.get('properties'))
             status = (qos, status[1])
         elif len(status['apps']) == 0:
             self.log.debug("[mqttasgi][app][subscribe] - Subscription to {}:{}".format(topic, qos))
             self.client.message_callback_add(topic, lambda client, userdata,
                                                            message: self._mqtt_receive(topic, message.topic,
                                                                                        message.payload,
-                                                                                       message.qos))
-            self.client.subscribe(topic, qos)
+                                                                                       message.qos,
+                                                                                       message.properties))
+            self.client.subscribe(topic, qos, properties=mqqt_subscritpion.get('properties'))
             status['qos'] = qos
         else:
             self.log.debug(
@@ -260,7 +278,7 @@ class Server(object):
 
         if len(status['apps']) == 1:
             if not soft:
-                self.client.unsubscribe(topic)
+                self.client.unsubscribe(topic, properties=mqqt_unsubscritpion.get('properties'))
             self.client.message_callback_remove(topic)
             self.topics_subscription[topic] = {'qos': 0, 'apps': set()}
             self.log.debug("[mqttasgi][app][unsubscribe] - {} Unsubscribed from {}".format('Soft' if soft else '',
