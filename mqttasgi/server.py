@@ -8,6 +8,7 @@ import json
 import paho.mqtt.client as mqtt
 from .utils import get_application
 import sys
+import ssl
 
 _logger = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ class Server(object):
     def __init__(self, application, host, port, username=None, password=None,
                  client_id=2407, mqtt_type_pub=None, mqtt_type_usub=None, mqtt_type_sub=None,
                  mqtt_type_msg=None, connect_max_retries=3, logger=None, clean_session=True, cert=None, key=None, ca_cert=None,
-                 use_ssl=False, transport ="tcp"):
+                 use_ssl=False, transport ="tcp", allow_insecure_ssl=False):
 
         self.application_type = application
         self.application_data = {}
@@ -48,6 +49,7 @@ class Server(object):
         self.key = key
         self.ca_cert = ca_cert
         self.use_ssl = use_ssl
+        self.allow_insecure_ssl = allow_insecure_ssl
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self.connect_max_retries = connect_max_retries
@@ -153,7 +155,11 @@ class Server(object):
                 keyfile=self.key,
             )
         elif self.use_ssl:
-            self.client.tls_set()
+            if self.allow_insecure_ssl:
+                self.client.tls_set(cert_reqs=ssl.CERT_NONE)
+                self.client.tls_insecure_set(True)
+            else:
+                self.client.tls_set()
         try:
             self.client.connect(self.host, self.port)
         except Exception as e:

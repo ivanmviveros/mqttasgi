@@ -38,6 +38,7 @@ Parameters:
 | -K / --key | TLS Key | TLS_KEY |  |
 | -S / --cacert | TLS CA Certificate | TLS_CA |  |
 | -SSL / --use-ssl | Use ssl (without certificate authentication) | MQTT_USE_SSL | False |
+| -SSL / --allow-insecure-ssl | Allow insecure ssl for self-signed certificate, should be used with --use-ssl   | MQTT_USE_SSL | False |
 | -T / --transport | Transport type (tcp or websockets) | MQTT_TRANSPORT | tcp |
 | -r / --retries | Num. retries on disconnect | MQTT_RETRIES | 3 |
 | Last argument | ASGI Apllication |  | |

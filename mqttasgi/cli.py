@@ -42,6 +42,8 @@ def main():
                         default=os.environ.get("TLS_CA", None))
     parser.add_argument("-SSL", "--use-ssl", dest="use_ssl", help="Use ssl with server signed certificate",
                         type=bool_type_converter, default=bool_type_converter(os.environ.get("MQTT_USE_SSL", "False")))
+    parser.add_argument("-ISSL", "--allow-insecure-ssl", dest="allow_insecure_ssl", help="Allow insecure ssl for self-signed certificate, should be used with --use-ssl",
+                        type=bool_type_converter, default=bool_type_converter(os.environ.get("MQTT_ALLOW_INSECURE_SSL", "False")))
     parser.add_argument("-T", "--transport", help="Transport type (tcp or websockets)",
                         default=os.environ.get("MQTT_TRANSPORT", "tcp"))
     parser.add_argument("-r", "--retries", help="Maximum number of connection retries after unexpected disconnect (0 to always try to reconnect)",
@@ -77,7 +79,8 @@ def main():
         ca_cert=args.cacert,
         connect_max_retries=args.retries,
         use_ssl=args.use_ssl,
-        transport = args.transport
+        transport = args.transport,
+        allow_insecure_ssl=args.allow_insecure_ssl,
     )
 
     server.run()
